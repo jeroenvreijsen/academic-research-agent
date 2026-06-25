@@ -73,11 +73,15 @@ class PaperStore:
         return [self._paper_from_row(row) for row in rows]
 
     def replace_all_papers(self, papers: list[Paper]) -> None:
+        # Replacement is used after deduplication and filtering so the database
+        # mirrors the current final paper set rather than keeping rejected items.
         with self.connect() as connection:
             connection.execute("DELETE FROM papers")
         self.add_papers(papers)
 
     def clear(self) -> None:
+        # Clearing the store supports run isolation: each command-line run should
+        # represent one topic only, not a mixture of current and previous topics.
         with self.connect() as connection:
             connection.execute("DELETE FROM papers")
 
@@ -88,6 +92,9 @@ class PaperStore:
         for paper in papers:
             key = self._dedupe_key(paper)
             existing = unique_papers.get(key)
+
+            # If the same paper appears more than once, the higher-scored copy is
+            # kept because it is the version most relevant to the current topic.
             if existing is None or paper.score > existing.score:
                 unique_papers[key] = paper
 
@@ -99,6 +106,8 @@ class PaperStore:
         self.replace_all_papers(papers)
 
     def _dedupe_key(self, paper: Paper) -> str:
+        # DOI is preferred because it is the most stable identifier. OpenAlex ID
+        # is used next, with normalized title as a fallback for incomplete records.
         if paper.doi:
             return f"doi:{paper.doi.lower()}"
         if paper.openalex_id:

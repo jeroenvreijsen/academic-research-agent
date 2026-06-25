@@ -26,9 +26,13 @@ def extract_reference_titles(markdown: str) -> list[str]:
 
 
 def validate_references(markdown: str, retrieved_papers: list[Paper]) -> None:
+    # The generated review is checked against retrieved titles so the system does
+    # not silently accept invented or unretrieved references.
     retrieved_titles = {_normalize_title(paper.title) for paper in retrieved_papers}
     reference_titles = extract_reference_titles(markdown)
 
+    # A references section is required because the assignment needs evidence that
+    # the output is grounded in retrieved academic sources.
     if not reference_titles:
         raise ReferenceValidationError("The literature review has no references.")
 
@@ -37,6 +41,7 @@ def validate_references(markdown: str, retrieved_papers: list[Paper]) -> None:
         for title in reference_titles
         if _normalize_title(title) not in retrieved_titles
     ]
+
     if invalid_titles:
         formatted = ", ".join(invalid_titles)
         raise ReferenceValidationError(

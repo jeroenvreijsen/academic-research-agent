@@ -21,6 +21,7 @@ STOPWORDS = {
     "with",
 }
 
+# A fixed threshold keeps the demo deterministic and easy to test.
 MIN_RELEVANCE_SCORE = 0.6
 
 
@@ -41,6 +42,9 @@ def score_paper(paper: Paper, topic: str, subgoal: str = "") -> float:
     if subgoal_words:
         subgoal_overlap = len(subgoal_words & paper_words) / len(subgoal_words)
 
+    # The main topic is weighted most heavily because the final review should
+    # stay aligned with the user's original goal, not only with a generated subgoal.
+    # Cubing the topic overlap penalizes papers that share only broad terms.
     score = (
         0.60 * (topic_overlap**3)
         + 0.25 * title_overlap
@@ -59,6 +63,8 @@ def score_papers(papers: list[Paper], topic: str) -> list[Paper]:
 def filter_relevant_papers(
     papers: list[Paper], minimum_score: float = MIN_RELEVANCE_SCORE
 ) -> list[Paper]:
+    # Filtering before generation reduces weak evidence and keeps the output
+    # concise enough for demonstration and assessment.
     return [paper for paper in papers if paper.score >= minimum_score]
 
 

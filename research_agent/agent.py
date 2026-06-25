@@ -28,17 +28,29 @@ class ResearchAgent:
         self.store = store or PaperStore(self.output_dir / "papers.sqlite")
 
     def run(self, topic: str, papers_per_subgoal: int = 5) -> Path:
+        # Each run starts with a clean store so papers from previous topics cannot
+        # contaminate the current literature review.
         self.store.clear()
+
         subgoals = self.plan_subgoals(topic)
         papers = self.search_for_papers(subgoals, papers_per_subgoal)
         self.store.add_papers(papers)
 
+        # Deduplication happens before scoring so repeated OpenAlex results do not
+        # influence the final paper selection.
         deduped_papers = self.store.remove_duplicates()
+
         scored_papers = score_papers(deduped_papers, topic)
+
+        # Filtering is applied before generation so the review is based only on
+        # papers that meet the minimum relevance threshold.
         relevant_papers = filter_relevant_papers(scored_papers)
         self.store.update_scores(relevant_papers)
 
         review = self.llm_client.write_literature_review(topic, relevant_papers)
+
+        # Reference validation is kept as a final safety check to reduce the risk
+        # of invented or unretrieved references appearing in the output.
         validate_references(review, relevant_papers)
 
         output_path = self.output_dir / "literature_review.md"
