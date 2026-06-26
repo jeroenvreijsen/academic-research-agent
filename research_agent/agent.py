@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from research_agent.llm_client import LLMClient, TemplateLLMClient
+from research_agent.llm_client import LLMClient, create_llm_client
 from research_agent.models import Paper
 from research_agent.openalex_client import OpenAlexClient
 from research_agent.scoring import filter_relevant_papers, score_papers
@@ -22,7 +22,7 @@ class ResearchAgent:
         self.openalex_client = openalex_client or OpenAlexClient(
             email=os.getenv("OPENALEX_EMAIL")
         )
-        self.llm_client = llm_client or TemplateLLMClient()
+        self.llm_client = llm_client or create_llm_client()
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.store = store or PaperStore(self.output_dir / "papers.sqlite")
@@ -44,7 +44,11 @@ class ResearchAgent:
 
         # Filtering is applied before generation so the review is based only on
         # papers that meet the minimum relevance threshold.
+        # every paper, the agent keeps the best-scored papers as a fallback so the run
+        # still produces a usable output instead of failing completely.
         relevant_papers = filter_relevant_papers(scored_papers)
+        if not relevant_papers:
+            relevant_papers = scored_papers[:3]
         self.store.update_scores(relevant_papers)
 
         review = self.llm_client.write_literature_review(topic, relevant_papers)
